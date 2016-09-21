@@ -129,8 +129,15 @@ class Capsule:
         self.priority = config.get("priority",1)
         self.configdir = config.get("configdir", configdir + "/" + self.hostname )
 
-
     def failover(self):
+        if self.services.get("pulp"):
+            self.failoverpulp()
+
+        if self.services.get("goferd"):
+            self.failovergofer()
+
+
+    def failoverpulp(self):
         consumer = [self.configdir + "/katello-rhsm-consumer"]
         #print_running(consumer)
         exec_failexit(consumer)
@@ -139,6 +146,8 @@ class Capsule:
         #print_running(clean)
         exec_failexit(clean)
 
+
+    def failovergofer(self):
         gofer=["systemctl","restart","goferd"]
         #print_running(gofer)
         exec_failexit(gofer)
