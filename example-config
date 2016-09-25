@@ -18,7 +18,7 @@ failover:
       puppetca: uk.sat6.calvinh.com
       services:
         puppet: true
-        rhsm: true
+        pulp: true
         dns: false
 
     - name: capsule2
@@ -36,5 +36,5 @@ failover:
       services:
         goferd: true
         puppet: true
-        rhsm: true
+        pulp: true
         dns: false
