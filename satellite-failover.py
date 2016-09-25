@@ -128,6 +128,8 @@ class Capsule:
         self.hostname = config.get("hostname",config.get("name"))
         self.priority = config.get("priority",1)
         self.configdir = config.get("configdir", configdir + "/" + self.hostname )
+        self.puppetmaster = config.get("puppetmaster",config.get("name"))
+        self.puppetca = config.get("puppetca",self.puppetmaster)
 
 
     def failover(self):
@@ -143,6 +145,15 @@ class Capsule:
         #print_running(gofer)
         exec_failexit(gofer)
     
+
+    def failoverpuppet(self):
+	caserver=["puppet","config","set", "--section", "agent", "ca_server", self.puppetca]
+        exec_failexit(caserver)
+	server=["puppet","config","set","--section","agent", "server", self.puppetmaster]
+        exec_failexit(server)
+	puppet=["systemctl","restart","puppet"]
+        exec_failexit(puppet)
+
 
 
 
