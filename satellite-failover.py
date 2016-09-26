@@ -130,12 +130,14 @@ class Capsule:
         self.puppetmaster = config.get("puppetmaster",config.get("name"))
         self.puppetca = config.get("puppetca",self.puppetmaster)
 
+`
     def failover(self):
         for s in self.services.keys():
             try:
                 self.getattr("failover_%s"%s)(self.services[s])
             except AttributeError,e:
                 print_warning("failover for %s not supported: %s"%(s,e))            
+
 
     def failover_pulp(self,arg):
         consumer = [self.configdir + "/katello-rhsm-consumer"]
@@ -153,9 +155,12 @@ class Capsule:
         exec_failexit(gofer)
     
 
-    def failover_puppet(self,arg):
+    def failover_puppetca(self,arg):
 	caserver = ["puppet","config","set", "--section", "agent", "ca_server", self.puppetca]
         exec_failexit(caserver)
+
+    
+    def failover_puppet(self,arg):
 	server = ["puppet","config","set","--section","agent", "server", self.puppetmaster]
         exec_failexit(server)
 	puppet = ["systemctl","restart","puppet"]
@@ -173,3 +178,4 @@ if __name__ == "__main__":
 
     fs=Failoverset(opt.failover_config)
     fs.failover()
+
