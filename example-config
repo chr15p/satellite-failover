@@ -14,9 +14,11 @@ failover:
       hostcollections:
       repos:
       usebootstrap: true
+      puppetmaster: uk.sat6.calvinh.com
+      puppetca: uk.sat6.calvinh.com
       services:
         puppet: true
-        rhsm: true
+        pulp: true
         dns: false
 
     - name: capsule2
@@ -29,8 +31,10 @@ failover:
       hostcollections:
       repos:
       usebootstrap: true
+      puppetmaster: ie.sat6.calvinh.com
+      puppetca: ie.sat6.calvinh.com
       services:
         goferd: true
         puppet: true
-        rhsm: true
+        pulp: true
         dns: false
