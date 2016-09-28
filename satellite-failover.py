@@ -140,11 +140,12 @@ class Capsule:
 
     def failover(self):
         ## list services in order they need to be failed over
-        for s in ['pulp','gopher','puppetca','puppet']:
-            try:
-                self.getattr("failover_%s"%s)(self.services[s])
-            except AttributeError,e:
-                print_warning("failover for %s not supported: %s"%(s,e))            
+        for s in ['pulp','gofer','puppetca','puppet']:
+            if self.services.get(s):
+                try:
+                    getattr(self,"failover_%s"%s)(self.services[s])
+                except AttributeError,e:
+                    print_warning("failover for %s not supported: %s"%(s,e))            
 
 
     def failover_pulp(self,arg):
