@@ -130,10 +130,18 @@ class Capsule:
         self.configdir = config.get("configdir", configdir + "/" + self.hostname )
         self.puppetmaster = config.get("puppetmaster",config.get("name"))
         self.puppetca = config.get("puppetca",self.puppetmaster)
-
-`
-    def failover(self):
+        self.services = config.get("services",{})
         for s in self.services.keys():
+            if self.services[s]== False:
+                del self.services[s]
+
+        if self.services == {}:
+            print_error("no services defined for %s"%self.hostname)
+
+
+    def failover(self):
+        ## list services in order they need to be failed over
+        for s in ['pulp','gofer','puppetca','puppet']:
             try:
                 self.getattr("failover_%s"%s)(self.services[s])
             except AttributeError,e:
@@ -150,7 +158,7 @@ class Capsule:
         exec_failexit(clean)
 
 
-    def failover_gofer(self,arg)
+    def failover_gofer(self,arg):
         gofer=["systemctl","restart","goferd"]
         #print_running(gofer)
         exec_failexit(gofer)
