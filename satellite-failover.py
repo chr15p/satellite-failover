@@ -127,7 +127,7 @@ class Capsule:
         self.hostname = config.get("hostname",config.get("name"))
         self.priority = config.get("priority",1)
         self.configdir = config.get("configdir", configdir + "/" + self.hostname )
-        self.puppetmaster = config.get("puppetmaster",config.get("name"))
+        self.puppetmaster = config.get("puppetmaster",self.hostname)
         self.puppetca = config.get("puppetca",self.puppetmaster)
         self.services = config.get("services",{})
         for s in self.services.keys():
