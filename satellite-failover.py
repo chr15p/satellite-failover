@@ -91,7 +91,7 @@ class Failoverset:
             proc = subprocess.Popen(['subscription-manager','config','--list'],stdout=subprocess.PIPE)
             for line in proc.stdout.readlines():
                 #print "line=%s"%line
-                m=re.match(r" *hostname *= *\[?([\.\w]+)\]?",line)
+                m=re.match(r" *hostname *= *\[?([\.\w-]+)\]?",line)
                 if m:
                     hostname = m.group(1)
                     break
@@ -106,9 +106,8 @@ class Failoverset:
         for i in self.capsules.keys():
             if self.capsules[i].hostname == self.currenthostname:
                 next
-            if nextcapsule == "" or ( self.capsules[i].priority > self.capsules[nextcapsule].priority):
+            elif nextcapsule == "" or ( self.capsules[i].priority > self.capsules[nextcapsule].priority):
                 nextcapsule=i
-
         return nextcapsule
 
 
@@ -148,7 +147,7 @@ class Capsule:
         exec_failexit(clean)
 
 
-    def failover_gofer(self,arg)
+    def failover_gofer(self,arg):
         gofer=["systemctl","restart","goferd"]
         #print_running(gofer)
         exec_failexit(gofer)
