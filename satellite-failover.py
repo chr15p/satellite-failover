@@ -149,33 +149,31 @@ class Capsule:
 
 
     def failover_pulp(self,arg):
-        consumer = [self.configdir + "/katello-rhsm-consumer"]
-        #print_running(consumer)
-        exec_failexit(consumer)
+		consumer = [self.configdir + "/katello-rhsm-consumer"]
+		#print_running(consumer)
+		exec_failexit(consumer)
 
-        clean=["/usr/bin/yum","clean","all"]
-        #print_running(clean)
-        exec_failexit(clean)
+		clean=["/usr/bin/yum","clean","all"]
+		#print_running(clean)
+		exec_failexit(clean)
 
 
     def failover_gofer(self,arg):
-        gofer=["systemctl","restart","goferd"]
-        #print_running(gofer)
-        exec_failexit(gofer)
+		gofer=["systemctl","restart","goferd"]
+		#print_running(gofer)
+		exec_failexit(gofer)
     
 
     def failover_puppetca(self,arg):
-	caserver = ["puppet","config","set", "--section", "agent", "ca_server", self.puppetca]
-        exec_failexit(caserver)
+		caserver = ["puppet","config","set", "--section", "agent", "ca_server", self.puppetca]
+		exec_failexit(caserver)
 
     
     def failover_puppet(self,arg):
-	server = ["puppet","config","set","--section","agent", "server", self.puppetmaster]
-        exec_failexit(server)
-	puppet = ["systemctl","restart","puppet"]
-        exec_failexit(puppet)
-
-
+		exec_failexit(["rm","-rf","/var/lib/puppet/"])
+		exec_failexit(["/usr/bin/puppet","config","set","--section","agent","server", self.puppetmaster])
+		exec_failexit(["/usr/bin/puppet","config","set","--section","agent","ca_server", self.puppetca])
+		exec_failexit(["/sbin/service","puppet","restart"])
 
 
 
