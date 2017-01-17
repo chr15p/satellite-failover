@@ -6,6 +6,7 @@ from ConfigParser import SafeConfigParser
 import yaml
 import subprocess
 import re
+import os.path
 
 
 error_colors = {
@@ -107,14 +108,17 @@ class Failoverset:
 			if self.capsules[i].hostname == self.currenthostname:
 				next
 			elif nextcapsule == "" or ( self.capsules[i].priority > self.capsules[nextcapsule].priority):
+				##TODO test if this capsule is actually up....
 				nextcapsule=i
 		return nextcapsule
 
 
 	def failover(self):
 		nextcapsule = self.getnextcapsule()
+		if nextcapsule == "": 
+			print_error("no valid capsules remaining")
 		print_generic("failing over to %s"%nextcapsule)
-		self.capsules[nextcapsule].state("failover")
+		self.capsules[nextcapsule].state("failover",self.currenthostname)
 	
 
 
@@ -131,7 +135,7 @@ class Capsule:
 		self.configdir = config.get("configdir", configdir + "/" + self.hostname )
 		self.puppetmaster = config.get("puppetmaster",self.hostname)
 		self.puppetca = config.get("puppetca",self.puppetmaster)
-		self.services = config.get("services",{})
+		self.services = config.get("services",{"puppet","pulp"})
 		for s in self.services.keys():
 			if self.services[s]== False:
 				del self.services[s]
@@ -140,7 +144,7 @@ class Capsule:
 			print_error("no services defined for %s"%self.hostname)
 
 
-	def state(self,state):
+	def state(self,state,currenthost):
 		result=0
 		## list services in order they need to be failed over
 		for s in ['pulp','gofer','puppet']:
@@ -148,7 +152,8 @@ class Capsule:
 				print "%s_%s"%(state,s)
 				print self.services[s]
 				try:
-					result = result + getattr(self,"%s_%s"%(state,s))(self.services[s])
+					#result = result + getattr(self,"%s_%s"%(state,s))(self.services[s], currenthost)
+					result = result + getattr(self,"%s_%s"%(state,s))(currenthost)
 				except AttributeError,e:
 					print_warning("%s for %s not supported: %s"%(state,s,e))			
 		return result
@@ -162,9 +167,8 @@ class Capsule:
 		clean=["/usr/bin/yum","clean","all"]
 		#print_running(clean)
 		exec_failexit(clean)
-		return 0
-
-	def failover_gofer(self,arg):
+		submanager=["subscription-manager","refresh"]
+		exec_failexit(submanager)
 		gofer=["systemctl","restart","goferd"]
 		#print_running(gofer)
 		exec_failexit(gofer)
@@ -176,25 +180,28 @@ class Capsule:
 	#	exec_failexit(caserver)
 
 	
-	def failover_puppet(self,arg):
-		exec_failexit(["rm","-rf","/var/lib/puppet/"])
+	def failover_puppet(self,currhost):
+		try:
+			currpuppetmaster = exec_failok["/usr/bin/puppet","config"," print","--section","agent","ca_server"])	
+		except:
+			currpuppetmaster = currhost
+
+		exec_failexit(["mv","/var/lib/puppet/ssl","/var/lib/puppet/ssl-" + currpuppetmaster])
+		if os.path.isdir("/var/lib/puppet/ssl-%s"%self.puppetmaster):
+			exec_failexit(["mv","/var/lib/puppet/ssl-" + self.puppetca,"/var/lib/puppet/ssl"])
+
 		exec_failexit(["/usr/bin/puppet","config","set","--section","agent","server", self.puppetmaster])
 		exec_failexit(["/usr/bin/puppet","config","set","--section","agent","ca_server", self.puppetca])
-		exec_failexit(["/sbin/service","puppet","restart"])
+		exec_failexit(["/sbin/service","puppet","try-restart"])
 		return 0
 
 
-	def test_puppet(self):
-		proc = subprocess.Popen(["puppet","status","find","test","--terminus","rest","--server", self.puppetmaster])
-		return 0
+	#def test_puppet(self):
+	#	proc = subprocess.Popen(["/usr/bin/puppet","status","find","test","--terminus","rest","--server", self.puppetmaster])
+	#	return 0
 
-
-	def test_gopher(self):
-		return 0
-
-
-	def test_pulp():
-		return 0
+	#def test_pulp():
+	#	return 0
 
 
 
