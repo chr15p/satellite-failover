@@ -11,31 +11,20 @@ import os.path
 
 error_colors = {
 	'HEADER': '\033[95m',
-	'OKBLUE': '\033[94m',
-	'OKGREEN': '\033[92m',
+	'OK': '\033[92m',
+	'GENERIC': '\033[94m',
 	'WARNING': '\033[93m',
-	'FAIL': '\033[91m',
+	'ERROR': '\033[91m',
+	'FATAL': '\033[91m',
 	'ENDC': '\033[0m',
 }
 
-def print_error(msg):
-	print "[%sERROR%s], [%s], EXITING: [%s] failed to execute properly." % (error_colors['FAIL'], error_colors['ENDC'], datetime.now().strftime('%Y-%m-%d %H:%M:%S'), msg)
-	exit(1)
+def logger(level,msg):
+	level=ucase(level)
+	print "[%s%s%s], [%s]: [%s]" % (error_colors[level],level,error_colors['ENDC'], datetime.now().strftime('%Y-%m-%d %H:%M:%S'), msg)
+	if level=="FATAL":
+		exit(1)
 
-def print_warning(msg):
-	print "[%sWARNING%s], [%s], NON-FATAL: [%s] failed to execute properly." % (error_colors['WARNING'], error_colors['ENDC'], datetime.now().strftime('%Y-%m-%d %H:%M:%S'), msg)
-
-
-def print_success(msg):
-	print "[%sSUCCESS%s], [%s], [%s], completed successfully." % (error_colors['OKGREEN'], error_colors['ENDC'], datetime.now().strftime('%Y-%m-%d %H:%M:%S'), msg)
-
-
-def print_running(msg):
-	print "[%sRUNNING%s], [%s], [%s] " % (error_colors['OKBLUE'], error_colors['ENDC'], datetime.now().strftime('%Y-%m-%d %H:%M:%S'), msg)
-
-
-def print_generic(msg):
-	print "[NOTIFICATION], [%s], [%s] " % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), msg)
 
 
 def exec_failok(command):
@@ -44,7 +33,8 @@ def exec_failok(command):
 	try:
 		output = subprocess.check_output(command)
 	except Exception,e:
-		print_warning("command \'%s\' failed: %s"%(command,e))
+		#print_warning("command \'%s\' failed: %s"%(command,e))
+		logger("warning","command \'%s\' failed: %s"%(command,e))
 
 	return output
 
@@ -55,15 +45,17 @@ def exec_failexit(command):
 	try:
 		output = subprocess.check_output(command)
 	except Exception,e:
-		print_generic(output)
-		print_error("command \'%s\' failed: %s"%(command,e))
+		#print_generic(output)
+		#print_error("command \'%s\' failed: %s"%(command,e))
+		logger("fatal","command \'%s\' failed: %s"%(command,e))
 	return output
 
 
 
 class Failoverset:
 	def __init__(self, configfile):
-		print_generic("Attempting to parse failover config")
+		#print_generic("Attempting to parse failover config")
+		logger("generic","Attempting to parse failover config")
 		self.defaults=dict()
 		self.capsules=dict()
 		with open(configfile, 'r') as stream:
@@ -71,7 +63,8 @@ class Failoverset:
 				cfg=yaml.load(stream)
 				cfg.get('failover')
 			except yaml.YAMLError as exc:
-				print_error("unable to read %s: %s"%(configfile,exc))
+				#print_error("unable to read %s: %s"%(configfile,exc))
+				logger("fatal","unable to read %s: %s"%(configfile,exc))
 		
 		for key in ["configdir","log"]:
 			if cfg['failover'].get(key):
@@ -97,7 +90,8 @@ class Failoverset:
 					hostname = m.group(1)
 					break
 		except Exception,e:
-			print_warning("failed to get current capsule %s"%e)
+			#print_warning("failed to get current capsule %s"%e)
+			logger("warning","failed to get current capsule %s"%e)
 	
 		return hostname
 
@@ -116,8 +110,10 @@ class Failoverset:
 	def failover(self):
 		nextcapsule = self.getnextcapsule()
 		if nextcapsule == "": 
-			print_error("no valid capsules remaining")
-		print_generic("failing over to %s"%nextcapsule)
+			#print_error("no valid capsules remaining")
+			logger("fatal","no valid capsules remaining")
+		#print_generic("failing over to %s"%nextcapsule)
+		logger("ok","failing over to %s"%nextcapsule)
 		self.capsules[nextcapsule].state("failover",self.currenthostname)
 	
 
@@ -127,7 +123,8 @@ class Failoverset:
 class Capsule:
 	def __init__(self,config,configdir):
 		if config.get("name") == None:
-			print_error("name attribute is required")
+			#print_error("name attribute is required")
+			logger("fatal","name attribute is required")
 			exit(1)
 
 		self.hostname = config.get("hostname",config.get("name"))
@@ -141,7 +138,8 @@ class Capsule:
 				del self.services[s]
 
 		if self.services == {}:
-			print_error("no services defined for %s"%self.hostname)
+			#print_error("no services defined for %s"%self.hostname)
+			logger("fatal","no services defined for %s"%self.hostname)
 
 
 	def state(self,state,currenthost):
@@ -155,7 +153,8 @@ class Capsule:
 					#result = result + getattr(self,"%s_%s"%(state,s))(self.services[s], currenthost)
 					result = result + getattr(self,"%s_%s"%(state,s))(currenthost)
 				except AttributeError,e:
-					print_warning("%s for %s not supported: %s"%(state,s,e))			
+					#print_warning("%s for %s not supported: %s"%(state,s,e))			
+					logger("warning","%s for %s not supported: %s"%(state,s,e))			
 		return result
 
 
@@ -182,7 +181,7 @@ class Capsule:
 	
 	def failover_puppet(self,currhost):
 		try:
-			currpuppetmaster = exec_failok["/usr/bin/puppet","config"," print","--section","agent","ca_server"])	
+			currpuppetmaster = exec_failok(["/usr/bin/puppet","config"," print","--section","agent","ca_server"])	
 		except:
 			currpuppetmaster = currhost
 
