@@ -7,7 +7,8 @@ import yaml
 import subprocess
 import re
 import os.path
-
+import random
+import pprint
 
 error_colors = {
 	'HEADER': '\033[95m',
@@ -20,7 +21,7 @@ error_colors = {
 }
 
 def logger(level,msg):
-	level=ucase(level)
+	level=level.upper()
 	print "[%s%s%s], [%s]: [%s]" % (error_colors[level],level,error_colors['ENDC'], datetime.now().strftime('%Y-%m-%d %H:%M:%S'), msg)
 	if level=="FATAL":
 		exit(1)
@@ -54,61 +55,91 @@ def exec_failexit(command):
 
 
 class CapsuleSet:
-	def __init__(self, config):
-		self.capsules=dict()
-		self.services=dict()
+	def __init__(self, configfile):
 
-		self.readfile(configfile,setname)
-		self.currenthostname = self.getcurrentcapsule()
-		
-		for i in self.services.keys():
-			i.failover(self.capsules[self.currenthostname]
-
+		self._config = self.readfile(configfile)
+		self._currentcapsules = self.getcurrentcapsule()
+		print self._currentcapsules	
+		print self.getnextcapsule('default').pulp
+		#for i in self.services.keys():
+		#	i.failover(self.capsules[self.currenthostname]
 
 
-
-	def readfile(configfile,setname):
-        cfgset = dict()
+	def readfile(self,configfile):
+		serviceset = {}
 		logger("generic","Attempting to parse failover config")
 		#capsules=dict()
+		allsets=[]
 		with open(configfile, 'r') as stream:
 			try:
-				allsets=yaml.load(stream)
-				allsets.get('failover')
+				yml=yaml.load(stream)
+				allsets = yml.get('failover')
 			except yaml.YAMLError as exc:
 				#print_error("unable to read %s: %s"%(configfile,exc))
 				logger("fatal","unable to read %s: %s"%(configfile,exc))
+		
+		#pprint.pprint(allsets)
+		#exit()
+		i=0
+		for s in allsets:
+			capsules=dict()
+			services=dict()
 
-		if isinstance(allsets['failover'],list):
-			for cset in allsets['failover']:
-				if cset['name'] == setname:
-					cfgset=cset
-		else:
-			cfgset=allsets['failover']
-
-		if cfgset['services'].get('puppet',false):
-			self.services['puppet']= Puppet(cfgset['services'].get('puppet'))
-
-		if cfgset['services'].get('pulp',false):
-			self.services['pulp']= Pulp(cfgset['services'].get('pulp'))
-
-		#print self.defaults
-		for i in cfgset['capsules']:
+			i=i+1
 			try:
+				name = s["name"]
+			except KeyError,e:
+				name = str(i)
+
+			try:
+				configdir = s["configdir"]
+			except KeyError,e:
+				configdir = "/usr/lofi/%s"%name
+
+			serviceset[name] = {"capsules": [],"services":{}}
+
+			try:
+				services = s["services"]
+			except KeyError,e:
+				logger("warning","no services defined for %s, defaulting to pulp")
+				services = {"pulp":"/etc/rhsm/rhsm.conf"} 
+
+			try:
+				capsules = s["capsules"]
+			except KeyError,e:
+				logger("fatal","no capsules defined for %s exiting.")
+	
+			for v in services.keys():
+				if v== "puppet":
+					serviceset[name]['services']['puppet']=Puppet(services['puppet'])
+				elif v == "pulp":
+					serviceset[name]['services']['pulp']=Pulp(services['pulp'])
+				else:
+					logger("fatal","service %s not supported"%v)
+
+			for c in capsules:
+				#print c
 				cfg=dict()
-				cfg['name']=i.get("name",False)
-				cfg['cfgdir']=i.get("cfgdir",config.get("configdir","/usr/lofi"))
-				cfg['pulp']=i.get('pulp',False)
-				cfg['puppetmaster']=i.get('puppetmaster',False)
-				cfg['priority']=i.get('priority',1)
-				self.capsules[cfg['pulp']] = Capsule(cfg)
-			else KeyError,e:
-				logger("fatal","capsule without %s in %s"%(e,configfile))
+				cfg['name']=c.get("name",False)
+				cfg['cfgdir']=configdir
+				cfg['pulp']=c.get('pulp',False)
+				cfg['puppetmaster']=c.get('puppetmaster',False)
+				cfg['priority']=c.get('priority',1)
+				serviceset[name]['capsules'].append(Capsule(cfg))
+		print "#######################"
+		pprint.pprint(serviceset)
 
-		return 0
+		return serviceset
 
 
-	def getcurrentcapsule(self):
+	def _getcurrentpuppetmaster(self):
+		pm = subprocess.Popen(["puppet","config","print","--section","agent","server"],stdout=subprocess.PIPE)
+		puppetmaster = pm.stdout.readline().rstrip()
+		#print "x=%s"%puppetmaster
+		return puppetmaster
+
+
+	def _getcurrentpulp(self):
 		hostname=None
 		try:
 			proc = subprocess.Popen(['subscription-manager','config','--list'],stdout=subprocess.PIPE)
@@ -117,72 +148,120 @@ class CapsuleSet:
 				m=re.match(r" *hostname *= *\[?([\.\w-]+)\]?",line)
 				if m:
 					hostname = m.group(1)
-					break
+					#print "y=%s"%hostname
+					return hostname
 		except Exception,e:
 			#print_warning("failed to get current capsule %s"%e)
 			logger("warning","failed to get current capsule %s"%e)
-	
-		return hostname
+
+		return hostname	
 
 
-	def getnextcapsule(self):
-		nextcapsule = "" 
-		for i in self.capsules.keys():
-			if self.capsules[i].hostname == self.currenthostname:
+	def getcurrentcapsule(self):
+		current=dict()
+		hostname = self._getcurrentpulp()
+		puppetmaster = self._getcurrentpuppetmaster()
+		#print "pulp=%s+ puppetmaster=%s+"%(hostname,puppetmaster)
+		for j in self._config.keys():
+			for i in self._config[j]['capsules']:
+				#print "ipulp=%s+ ipuppetmaster=%s+"%(i.pulp,i.puppetmaster)
+				#print "=pulp=%s =puppetmaster=%s"%(i.pulp==hostname,i.puppetmaster==puppetmaster)
+				if i.puppetmaster == puppetmaster and i.pulp == hostname:
+					#return i
+					current[j]=i
+
+		return current
+
+
+	def getnextcapsule(self,name):
+		nextcapsule = []
+		nextprio=-1
+		for i in self._config[name]['capsules']:
+			if i == self._currentcapsules[name]:
+				##skip if its the current capsule so we cant fail onto it
 				next
-			elif nextcapsule == "" or ( self.capsules[i].priority > self.capsules[nextcapsule].priority):
+			elif nextcapsule == "" or ( i.priority == nextprio):
 				##TODO test if this capsule is actually up....
-				nextcapsule=i
-		return nextcapsule
+				nextcapsule.append(i)
+			elif i.priority > nextprio:
+				nextcapsule = []
+				nextcapsule.append(i)
+				nextprio=i.priority
+				
+		if len(nextcapsule)== 1:
+			return nextcapsule[0]
+		elif len(nextcapsule)== 0:
+			raise Exception("unable to find a valid capsule to failover to")
+			return False
+		else:
+			## we have multiple options pick a random one...
+			return nextcapsule[random.randint(0,len(nextcapsule))]
 
 
-	def failover(self):
-		nextcapsule = self.getnextcapsule()
-		if nextcapsule == "": 
-			#print_error("no valid capsules remaining")
-			logger("fatal","no valid capsules remaining")
-		#print_generic("failing over to %s"%nextcapsule)
-		logger("ok","failing over to %s"%nextcapsule)
-		self.capsules[nextcapsule].state("failover",self.currenthostname)
+	#def failover(self):
+	#	nextcapsule = self.getnextcapsule()
+	#	if nextcapsule == "":
+	#		#print_error("no valid capsules remaining")
+	#		logger("fatal","no valid capsules remaining")
+	#	#print_generic("failing over to %s"%nextcapsule)
+	#	logger("ok","failing over to %s"%nextcapsule)
+	#	self.capsules[nextcapsule].state("failover",self.currenthostname)
 	
-
 
 
 
 class Capsule:
-	def __init__(self,config,configdir):
-		self.config=config
-		self.services['yum']=Yum(self.config)
-		self.services['puppetmaster']=Puppet(self.config)
+	def __init__(self,config):
+		self._priority=config['priority']
+		self._pulp=config.get('pulp',False)
+		self._puppetmaster=config.get('puppetmaster',False)
 
-#	def state(self,state,currenthost):
-#		result=0
-#		## list services in order they need to be failed over
-#		for s in ['pulp','gofer','puppet']:
-#			if self.services.get(s):
-#				print "%s_%s"%(state,s)
-#				print self.services[s]
-#				try:
-#					#result = result + getattr(self,"%s_%s"%(state,s))(self.services[s], currenthost)
-#					result = result + getattr(self,"%s_%s"%(state,s))(currenthost)
-#				except AttributeError,e:
-#					#print_warning("%s for %s not supported: %s"%(state,s,e))			
-#					logger("warning","%s for %s not supported: %s"%(state,s,e))			
-#		return result
+	@property
+	def priority(self):
+		return self._priority
+
+	@property
+	def pulp(self):
+		return self._pulp
+
+	@property
+	def puppetmaster(self):
+		return self._puppetmaster
+
+	def test(self):
+		if not self.testpulp():
+			return False
+	 	if not self.testpuppet():
+			return False
+		return true
+
+	def testpuppet(self):
+		## if not configured then pass automatically
+		if self._puppetmaster == False:
+			return True
+		proc = subprocess.Popen(["/usr/bin/puppet","status","find","test","--terminus","rest","--server", self._puppetmaster])
+		return 0
+
+	def testpulp():
+		## if not configured then pass automatically
+		if self._pulp == False:
+			return True
+		return 0
 
 
 class Service():
-	def __init__(self,config):
-		pass		
-	def test(self):
-		pass
-	def failover(from,to):
-		pass
+	def __init__(self,configfile):
+		self._file=configfile
+
+	@property
+	def file(self):
+		return self._file
+
+	#def failover(self,to):
+	#	pass
 
 
-class Yum(Service):
-	
-
+class Pulp(Service):
 	def failover(self,arg):
 		consumer = [self.configdir + "/katello-rhsm-consumer"]
 		#print_running(consumer)
@@ -198,9 +277,6 @@ class Yum(Service):
 		exec_failexit(gofer)
 		return 0
 	
-	def test_pulp():
-		return 0
-
 
 class Puppet(Service):
 	
@@ -219,9 +295,6 @@ class Puppet(Service):
 		exec_failexit(["/sbin/service","puppet","try-restart"])
 		return 0
 
-	def test(self):
-		proc = subprocess.Popen(["/usr/bin/puppet","status","find","test","--terminus","rest","--server", self.puppetmaster])
-		return 0
 
 
 
