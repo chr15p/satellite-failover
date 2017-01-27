@@ -173,11 +173,16 @@ class CapsuleSet:
 		return current
 
 
-	def getnextcapsule(self,name):
+	def getnextcapsule(self,setname,blacklist=[]):
+                ### get the next capsule from a single set called name
 		nextcapsule = []
 		nextprio=-1
-		for i in self._config[name]['capsules']:
-			if i == self._currentcapsules[name]:
+                print "########"
+                pprint.pprint(self._config['default'])
+                print "========########"
+		for i in self._config[setname]['capsules']:
+			#if i == self._currentcapsules[name]:
+			if i in blacklist:
 				##skip if its the current capsule so we cant fail onto it
 				next
 			elif nextcapsule == "" or ( i.priority == nextprio):
@@ -198,13 +203,18 @@ class CapsuleSet:
 			return nextcapsule[random.randint(0,len(nextcapsule))]
 
 
-	#def failover(self):
-	#	nextcapsule = self.getnextcapsule()
-	#	if nextcapsule == "":
-	#		#print_error("no valid capsules remaining")
-	#		logger("fatal","no valid capsules remaining")
+	def failover(self,setname):
+                ##failover to a single named set
+		nextcapsule = self.getnextcapsule(setname,[self._currentcapsules])
+		if nextcapsule == False:
+			logger("fatal","no valid capsules remaining")
 	#	#print_generic("failing over to %s"%nextcapsule)
-	#	logger("ok","failing over to %s"%nextcapsule)
+		logger("ok","failing over to '%s'"%nextcapsule.name)
+                for s in self._config[name]['services'].keys():
+                    try:
+                        self._config[name]['services'][s].failover(nextcapsule)
+                    except:
+                        logger("error","failed to failover %s to %s"%(s,nextcapsule.name()))
 	#	self.capsules[nextcapsule].state("failover",self.currenthostname)
 	
 
@@ -212,9 +222,14 @@ class CapsuleSet:
 
 class Capsule:
 	def __init__(self,config):
+		self._name=config['name']
 		self._priority=config['priority']
 		self._pulp=config.get('pulp',False)
 		self._puppetmaster=config.get('puppetmaster',False)
+
+	@property
+	def name(self):
+		return self._name
 
 	@property
 	def priority(self):
@@ -233,7 +248,7 @@ class Capsule:
 			return False
 	 	if not self.testpuppet():
 			return False
-		return true
+		return True
 
 	def testpuppet(self):
 		## if not configured then pass automatically
@@ -263,6 +278,7 @@ class Service():
 
 class Pulp(Service):
 	def failover(self,arg):
+                return 0
 		consumer = [self.configdir + "/katello-rhsm-consumer"]
 		#print_running(consumer)
 		exec_failexit(consumer)
@@ -281,6 +297,7 @@ class Pulp(Service):
 class Puppet(Service):
 	
 	def failover(self,currhost):
+                return 0
 		try:
 			currpuppetmaster = exec_failok(["/usr/bin/puppet","config"," print","--section","agent","ca_server"])	
 		except:
@@ -305,5 +322,5 @@ if __name__ == "__main__":
 	#main()
 
 	fs=CapsuleSet(opt.failover_config)
-	#fs.failover()
+	fs.failover("default")
 
