@@ -59,11 +59,14 @@ class CapsuleSet:
 
 		self._config = self.readfile(configfile)
 		self._currentcapsules = self.getcurrentcapsule()
-		print self._currentcapsules	
-		print self.getnextcapsule('default').pulp
+		#print self._currentcapsules	
+		#print self.getnextcapsule('default').pulp
 		#for i in self.services.keys():
 		#	i.failover(self.capsules[self.currenthostname]
 
+        @property
+        def sets(self):
+                return self._config.keys()
 
 	def readfile(self,configfile):
 		serviceset = {}
@@ -126,8 +129,8 @@ class CapsuleSet:
 				cfg['puppetmaster']=c.get('puppetmaster',False)
 				cfg['priority']=c.get('priority',1)
 				serviceset[name]['capsules'].append(Capsule(cfg))
-		print "#######################"
-		pprint.pprint(serviceset)
+		#print "#######################"
+		#pprint.pprint(serviceset)
 
 		return serviceset
 
@@ -177,9 +180,9 @@ class CapsuleSet:
                 ### get the next capsule from a single set called name
 		nextcapsule = []
 		nextprio=-1
-                print "########"
-                pprint.pprint(self._config['default'])
-                print "========########"
+                #print "########"
+                #pprint.pprint(self._config['default'])
+                #print "========########"
 		for i in self._config[setname]['capsules']:
 			#if i == self._currentcapsules[name]:
 			if i in blacklist:
@@ -210,9 +213,9 @@ class CapsuleSet:
 			logger("fatal","no valid capsules remaining")
 	#	#print_generic("failing over to %s"%nextcapsule)
 		logger("ok","failing over to '%s'"%nextcapsule.name)
-                for s in self._config[name]['services'].keys():
+                for s in self._config[setname]['services'].keys():
                     try:
-                        self._config[name]['services'][s].failover(nextcapsule)
+                        self._config[setname]['services'][s].failover(nextcapsule)
                     except:
                         logger("error","failed to failover %s to %s"%(s,nextcapsule.name()))
 	#	self.capsules[nextcapsule].state("failover",self.currenthostname)
@@ -322,5 +325,7 @@ if __name__ == "__main__":
 	#main()
 
 	fs=CapsuleSet(opt.failover_config)
-	fs.failover("default")
+        for i in fs.sets:
+                #print "i=%s"%i
+        	fs.failover(i)
 
