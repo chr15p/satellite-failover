@@ -248,32 +248,32 @@ class Capsule:
 	def hostname(self):
 		return self._hostname
 
-	def test(self):
-		if not self.testpulp():
-			return False
-	 	if not self.testpuppet():
-			return False
-		return True
-
 	def _getcurrentpuppetmaster(self):
 		pm = subprocess.Popen(["puppet","config","print","--section","agent","server"],stdout=subprocess.PIPE)
 		puppetmaster = pm.stdout.readline().rstrip()
 		#print "x=%s"%puppetmaster
 		return puppetmaster
 
-
-	def testpuppet(self):
-		## if not configured then pass automatically
-		if self._puppetmaster == False:
-			return True
-		proc = subprocess.Popen(["/usr/bin/puppet","status","find","test","--terminus","rest","--server", self._puppetmaster])
-		return 0
-
-	def testpulp():
-		## if not configured then pass automatically
-		if self._pulp == False:
-			return True
-		return 0
+	#def test(self):
+	#	if not self.testpulp():
+	#		return False
+	#	if not self.testpuppet():
+	#		return False
+	#	return True
+        #
+        #
+	#def testpuppet(self):
+	#	## if not configured then pass automatically
+	#	if self._puppetmaster == False:
+	#		return True
+	#	proc = subprocess.Popen(["/usr/bin/puppet","status","find","test","--terminus","rest","--server", self._puppetmaster])
+	#	return 0
+        #
+	#def testpulp():
+	#	## if not configured then pass automatically
+	#	if self._pulp == False:
+	#		return True
+	#	return 0
 
 
 class Service():
